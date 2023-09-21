@@ -53,6 +53,16 @@ services:
     ports:
       - 8888:8888
 
+  dispatcher-service:
+    depends_on:
+      - polar_rabbitmq
+    image: dispatcher-service
+    container_name: dispatcher_service
+    ports:
+      - 9003:9003
+    environment:
+      RABBITMQ_HOST: polar-rabbitmq
+
   polar-postgres:
     image: "postgres:14.4"
     container_name: "polar-postgres"
