@@ -1,10 +1,50 @@
 version: "3.8"
 services:
+
+  polar-postgres:
+    image: "postgres:14.4"
+    container_name: "polar-postgres"
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - ./postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  polar-redis:
+    image: "redis:7.0"
+    container_name: "polar-redis"
+    ports:
+      - 6379:6379
+
+  polar-rabbitmq:
+    image: rabbitmq:3.10-management
+    container_name: "polar-rabbitmq"
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+
+  polar-keycloak:
+    image: quay.io/keycloak/keycloak:19.0
+    container_name: "polar-keycloak"
+    command: start-dev --import-realm
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import
+    environment:
+      - KEYCLOAK_ADMIN=user
+      - KEYCLOAK_ADMIN_PASSWORD=password
+    ports:
+      - 8080:8080
+
   edge-service:
     depends_on:
       - polar-redis
       - catalog-service
       - order-service
+      - polar-ui
     image: "edge-service"
     container_name: "edge-service"
     ports:
@@ -14,6 +54,7 @@ services:
       - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
       - CATALOG_SERVICE_URL=http://catalog-service:9001
       - ORDER_SERVICE_URL=http://order_service:9002
+      - SPA_URL=http://polar-ui:9004
 
   order-service:
     depends_on:
@@ -59,34 +100,16 @@ services:
     depends_on:
       - polar-rabbitmq
     image: dispatcher-service
-    container_name: dispatcher_service
+    container_name: "dispatcher-service"
     ports:
       - 9003:9003
     environment:
       RABBITMQ_HOST: polar-rabbitmq
 
-  polar-postgres:
-    image: "postgres:14.4"
-    container_name: "polar-postgres"
+  polar-ui:
+    image: "ghcr.io/polarbookshop/polar-ui:v1"
+    container_name: "polar_ui"
     ports:
-      - 5432:5432
+      - 9004:9004
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-    volumes:
-      - ./postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
-
-  polar-redis:
-    image: "redis:7.0"
-    container_name: "polar_redis"
-    ports:
-      - 6379:6379
-
-  polar-rabbitmq:
-    image: rabbitmq:3.10-management
-    container_name: polar_rabbitmq
-    ports:
-      - 5672:5672
-      - 15672:15672
-    volumes:
-      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+      - PORT=9004
