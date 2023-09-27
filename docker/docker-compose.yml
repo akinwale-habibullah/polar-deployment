@@ -1,5 +1,127 @@
 version: "3.8"
 services:
+  catalog-service:
+    image: "catalog-service"
+    container_name: "catalog-service"
+    depends_on:
+      - fluent-bit
+      - polar-postgres
+      - config-service
+    ports:
+      - 9001:9001
+      - 8001:8001
+    environment:
+      - BPL_JVM_THREAD_COUNT=50
+      - BPL_DEBUG_ENABLED=true
+      - BPL_DEBUG_PORT=8001
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://polar-postgres:5432/polardb_catalog
+      - SPRING_PROFILES_ACTIVE=testdata
+      - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://host.docker.internal:8080/realms/PolarBookshop
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 127.0.0.1:24224
+
+  order-service:
+    image: "order-service"
+    container_name: "order-service"
+    depends_on:
+      - fluent-bit
+      - polar-postgres
+      - config-service
+      - catalog-service
+      - polar-rabbitmq
+    ports:
+      - 9002:9002
+    environment:
+      - BPL_DEBUG_ENABLED=true
+      - BPL_DEBUG_PORT=8002
+      - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+      - SPRING_R2DBC_URL=r2dbc:postgresql://polar-postgres:5432/polardb_order
+      - SPRING_FLYWAY_URL=jdbc:postgresql://polar-postgres:5432/polardb_order
+      - POLAR_CATALOG_SERVICE_URI=http://catalog-service:9001
+      - SPRING_RABBITMQ_HOST=polar-rabbitmq
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://host.docker.internal:8080/realms/PolarBookshop
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 127.0.0.1:24224
+
+  dispatcher-service:
+    image: dispatcher-service
+    container_name: "dispatcher-service"
+    depends_on:
+      - fluent-bit
+      - polar-rabbitmq
+    ports:
+      - 9003:9003
+    environment:
+      - BPL_DEBUG_ENABLED=true
+      - BPL_DEBUG_PORT=8003
+      - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+      - SPRING_RABBITMQ_HOST=polar-rabbitmq
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 127.0.0.1:24224
+
+  edge-service:
+    image: "edge-service"
+    container_name: "edge-service"
+    depends_on:
+      - fluent-bit
+      - polar-redis
+      - catalog-service
+      - order-service
+      - polar-ui
+    ports:
+      - 9000:9000
+    environment:
+      - BPL_DEBUG_ENABLED=true
+      - BPL_DEBUG_PORT=8000
+      - SPRING_REDIS_HOST=polar-redis
+      - CATALOG_SERVICE_URL=http://catalog-service:9001
+      - ORDER_SERVICE_URL=http://order_service:9002
+      - SPA_URL=http://polar-ui:9004
+      - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+      - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KEYCLOAK_ISSUER_URI=http://host.docker.internal:8080/realms/PolarBookshop
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 127.0.0.1:24224
+
+  config-service:
+    image: "config-service"
+    container_name: "config-service"
+    depends_on:
+      - fluent-bit
+    ports:
+      - 8888:8888
+    environment:
+      - BPL_JVM_THREAD_COUNT=50
+      - BPL_DEBUG_ENABLED=true
+      - BPL_DEBUG_PORT=9888
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 127.0.0.1:24224
+
+  polar-ui:
+    image: "ghcr.io/polarbookshop/polar-ui:v1"
+    container_name: "polar_ui"
+    depends_on:
+      - fluent-bit
+    ports:
+      - 9004:9004
+    environment:
+      - PORT=9004
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 127.0.0.1:24224
+
+  #Backing services
 
   polar-postgres:
     image: "postgres:14.4"
@@ -39,77 +161,55 @@ services:
     ports:
       - 8080:8080
 
-  edge-service:
+  # Observability
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
     depends_on:
-      - polar-redis
-      - catalog-service
-      - order-service
-      - polar-ui
-    image: "edge-service"
-    container_name: "edge-service"
+      - loki
     ports:
-      - 9000:9000
+      - "3000:3000"
     environment:
-      - SPRING_REDIS_HOST=polar-redis
-      - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
-      - CATALOG_SERVICE_URL=http://catalog-service:9001
-      - ORDER_SERVICE_URL=http://order_service:9002
-      - SPA_URL=http://polar-ui:9004
+      - GF_SECURITY_ADMIN_USER=user
+      - GF_SECURITY_ADMIN_PASSWORD=password
+    volumes:
+      - ./observability/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./observability/grafana/grafana.ini:/etc/grafana/grafana.ini
 
-  order-service:
+  loki:
+    image: grafana/loki:2.6.1
+    container_name: loki
     depends_on:
-      - polar-postgres
-      - config-service
-      - catalog-service
-      - polar-rabbitmq
-    image: "order-service"
-    container_name: "order-service"
+      - fluent-bit
     ports:
-      - 9002:9002
-    environment:
-      - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
-      - SPRING_R2DBC_URL=r2dbc:postgresql://polar-postgres:5432/polardb_order
-      - SPRING_FLYWAY_URL=jdbc:postgresql://polar-postgres:5432/polardb_order
-      - POLAR_CATALOG_SERVICE_URI=http://catalog-service:9001
-      - SPRING_RABBITMQ_HOST=polar-rabbitmq
+      - "3100:3100"
 
-  catalog-service:
-    depends_on:
-      - polar-postgres
-      - config-service
-    image: "catalog-service"
-    container_name: "catalog-service"
+  fluent-bit:
+    image: grafana/fluent-bit-plugin-loki:2.6.1-amd64
+    container_name: fluent-bit
     ports:
-      - 9001:9001
-      - 8001:8001
+      - "24224:24224"
     environment:
-      - BPL_JVM_THREAD_COUNT=50
-      - BPL_DEBUG_ENABLED=true
-      - BPL_DEBUG_PORT=8001
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://polar-postgres:5432/polardb_catalog
-      - SPRING_PROFILES_ACTIVE=testdata
-      - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+      - LOKI_URL=http://loki:3100/loki/api/v1/push
+    volumes:
+      - ./observability/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
 
-  config-service:
-    image: "config-service"
-    container_name: "config-service"
+  prometheus:
+    image: prom/prometheus:v2.38.0
+    container_name: prometheus
     ports:
-      - 8888:8888
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
 
-  dispatcher-service:
-    depends_on:
-      - polar-rabbitmq
-    image: dispatcher-service
-    container_name: "dispatcher-service"
+  tempo:
+    image: grafana/tempo:1.5.0
+    container_name: tempo
+    command: -config.file /etc/tempo-config.yml
     ports:
-      - 9003:9003
-    environment:
-      RABBITMQ_HOST: polar-rabbitmq
-
-  polar-ui:
-    image: "ghcr.io/polarbookshop/polar-ui:v1"
-    container_name: "polar_ui"
-    ports:
-      - 9004:9004
-    environment:
-      - PORT=9004
+      - "3110:3100"     # Tempo
+      - "4317:4317"     # OTel
+    volumes:
+      - ./observability/tempo/tempo.yml:/etc/tempo-config.yml
