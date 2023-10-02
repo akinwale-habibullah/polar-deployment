@@ -5,8 +5,10 @@ services:
     container_name: "catalog-service"
     depends_on:
       - fluent-bit
+      - polar-keycloak
       - polar-postgres
       - config-service
+      - tempo 
     ports:
       - 9001:9001
       - 8001:8001
@@ -14,6 +16,10 @@ services:
       - BPL_JVM_THREAD_COUNT=50
       - BPL_DEBUG_ENABLED=true
       - BPL_DEBUG_PORT=8001
+      - JAVA_TOOL_OPTIONS=-javaagent:/workspace/BOOT-INF/lib/opentelemetry-javaagent-1.17.0.jar
+      - OTEL_SERVICE_NAME=catalog-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
+      - OTEL_METRICS_EXPORTER=none
       - SPRING_DATASOURCE_URL=jdbc:postgresql://polar-postgres:5432/polardb_catalog
       - SPRING_PROFILES_ACTIVE=testdata
       - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
@@ -37,6 +43,10 @@ services:
     environment:
       - BPL_DEBUG_ENABLED=true
       - BPL_DEBUG_PORT=8002
+      - JAVA_TOOL_OPTIONS=-javaagent:/workspace/BOOT-INF/lib/opentelemetry-javaagent-1.17.0.jar
+      - OTEL_SERVICE_NAME=order-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
+      - OTEL_METRICS_EXPORTER=none
       - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
       - SPRING_R2DBC_URL=r2dbc:postgresql://polar-postgres:5432/polardb_order
       - SPRING_FLYWAY_URL=jdbc:postgresql://polar-postgres:5432/polardb_order
@@ -59,6 +69,10 @@ services:
     environment:
       - BPL_DEBUG_ENABLED=true
       - BPL_DEBUG_PORT=8003
+      - JAVA_TOOL_OPTIONS=-javaagent:/workspace/BOOT-INF/lib/opentelemetry-javaagent-1.17.0.jar
+      - OTEL_SERVICE_NAME=dispatcher-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
+      - OTEL_METRICS_EXPORTER=none
       - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
       - SPRING_RABBITMQ_HOST=polar-rabbitmq
     logging:
@@ -71,6 +85,7 @@ services:
     container_name: "edge-service"
     depends_on:
       - fluent-bit
+      - polar-keycloak
       - polar-redis
       - catalog-service
       - order-service
@@ -80,10 +95,14 @@ services:
     environment:
       - BPL_DEBUG_ENABLED=true
       - BPL_DEBUG_PORT=8000
-      - SPRING_REDIS_HOST=polar-redis
-      - CATALOG_SERVICE_URL=http://catalog-service:9001
-      - ORDER_SERVICE_URL=http://order_service:9002
+      - JAVA_TOOL_OPTIONS=-javaagent:/workspace/BOOT-INF/lib/opentelemetry-javaagent-1.17.0.jar
+      - OTEL_SERVICE_NAME=edge-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
+      - OTEL_METRICS_EXPORTER=none
       - SPA_URL=http://polar-ui:9004
+      - ORDER_SERVICE_URL=http://order_service:9002
+      - CATALOG_SERVICE_URL=http://catalog-service:9001
+      - SPRING_REDIS_HOST=polar-redis
       - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
       - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KEYCLOAK_ISSUER_URI=http://host.docker.internal:8080/realms/PolarBookshop
     logging:
@@ -168,6 +187,8 @@ services:
     container_name: grafana
     depends_on:
       - loki
+      - prometheus
+      - tempo
     ports:
       - "3000:3000"
     environment:
@@ -209,7 +230,7 @@ services:
     container_name: tempo
     command: -config.file /etc/tempo-config.yml
     ports:
-      - "3110:3100"     # Tempo
+      # - "3110:3100"     # Tempo
       - "4317:4317"     # OTel
     volumes:
       - ./observability/tempo/tempo.yml:/etc/tempo-config.yml
