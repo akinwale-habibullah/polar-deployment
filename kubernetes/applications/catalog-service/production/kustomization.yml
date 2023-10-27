@@ -18,7 +18,7 @@ configMapGenerator:
 images:
 - name: catalog-service
   newName: ghcr.io/akinwale-habibullah/catalog-service
-  newTag: 5edf1229cf5fa5353c23f36e8712aaf3d37159f6
+  newTag: 6f74573dab1b7e435aa18e0707221ba4d325ef62
 
 replicas:
 - count: 2
