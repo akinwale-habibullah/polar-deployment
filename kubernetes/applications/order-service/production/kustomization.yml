@@ -2,24 +2,24 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - github.com/akinwale-habibullah/order-service/k8s?ref=main
+- github.com/akinwale-habibullah/order-service/k8s?ref=main
 
 patches:
-  - path: patch-env.yml
-  - path: patch-resources.yml
-  - path: patch-volumes.yml
+- path: patch-env.yml
+- path: patch-resources.yml
+- path: patch-volumes.yml
 
 configMapGenerator:
-  - behavior: merge
-    files:
-      - application-prod.yml
-    name: order-config
+- behavior: merge
+  files:
+  - application-prod.yml
+  name: order-config
 
 images:
-  - name: order-service
-    newName: ghcr.io/akinwale-habibullah/order-service
-    newTag: latest
+- name: order-service
+  newName: ghcr.io/akinwale-habibullah/order-service
+  newTag: 8fdc71685c81301cf7010946ea7c094448b01858
 
 replicas:
-  - count: 1
-    name: order-service
+- count: 1
+  name: order-service
