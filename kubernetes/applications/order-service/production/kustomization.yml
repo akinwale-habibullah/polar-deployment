@@ -18,7 +18,7 @@ configMapGenerator:
 images:
 - name: order-service
   newName: ghcr.io/akinwale-habibullah/order-service
-  newTag: 2519ffa190e456e8184e69c16bbcfb1e2bd6ec11
+  newTag: b8ad65fb3a011bcbe8f2dcd27b1ce5e90022cae3
 
 replicas:
 - count: 1
