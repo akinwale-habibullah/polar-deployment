@@ -18,7 +18,7 @@ configMapGenerator:
 images:
 - name: dispatcher-service
   newName: ghcr.io/akinwale-habibullah/dispatcher-service
-  newTag: cda0e75cd310ba9633b14693913c7b447a4bb01d
+  newTag: 6e1d7ec6aeb658f183259b4154e6c87ade3ff224
 
 replicas:
 - count: 2
